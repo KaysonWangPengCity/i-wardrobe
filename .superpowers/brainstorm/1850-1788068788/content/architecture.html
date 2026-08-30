@@ -1,0 +1,72 @@
+<h2>整体架构</h2>
+<p class="subtitle">纯前端 PWA,分层清晰。AI/天气作为外部服务被适配器调用</p>
+
+<div class="mockup">
+  <div class="mockup-header">分层架构(自上而下)</div>
+  <div class="mockup-body" style="padding:20px;display:flex;flex-direction:column;gap:12px">
+
+    <!-- UI 层 -->
+    <div style="border:2px solid #6366f1;border-radius:10px;padding:12px;background:#eef2ff">
+      <div style="font-weight:700;color:#4338ca;margin-bottom:8px">UI 层 · React + Vite + vite-pwa</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+        <div class="placeholder" style="margin:0">今日推荐</div>
+        <div class="placeholder" style="margin:0">衣橱浏览</div>
+        <div class="placeholder" style="margin:0">拍照入库</div>
+        <div class="placeholder" style="margin:0">穿搭历史</div>
+        <div class="placeholder" style="margin:0">设置</div>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#64748b;font-size:20px">▼ 调用 ▲</div>
+
+    <!-- Domain 引擎层 -->
+    <div style="border:2px solid #ec4899;border-radius:10px;padding:12px;background:#fdf2f8">
+      <div style="font-weight:700;color:#be185d;margin-bottom:8px">Domain 引擎层(纯 TS,可单测)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="placeholder" style="margin:0">Tagger<br><span style="font-size:11px;color:#64748b">视觉识别→单品记录</span></div>
+        <div class="placeholder" style="margin:0;background:#fff">RecommendationEngine<br><span style="font-size:11px;color:#64748b">天气过滤→候选生成→AI重排</span></div>
+        <div class="placeholder" style="margin:0">AffinityStore<br><span style="font-size:11px;color:#64748b">亲和分/反馈学习</span></div>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#64748b;font-size:20px">▼ 依赖 ▲</div>
+
+    <!-- Service 层 -->
+    <div style="border:2px solid #10b981;border-radius:10px;padding:12px;background:#ecfdf5">
+      <div style="font-weight:700;color:#047857;margin-bottom:8px">Service 适配层(隔离外部依赖,便于 mock 测试)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="placeholder" style="margin:0">StorageService<br><span style="font-size:11px;color:#64748b">Dexie/IndexedDB 封装</span></div>
+        <div class="placeholder" style="margin:0">AIService<br><span style="font-size:11px;color:#64748b">视觉+文本,用户Key</span></div>
+        <div class="placeholder" style="margin:0">WeatherService<br><span style="font-size:11px;color:#64748b">Open-Meteo+定位</span></div>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#64748b;font-size:20px">▼</div>
+
+    <!-- 持久化 + 外部 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="border:2px dashed #64748b;border-radius:10px;padding:12px;background:#f8fafc;text-align:center">
+        <div style="font-weight:700;color:#334155;margin-bottom:4px">持久化</div>
+        <div style="font-size:12px;color:#64748b">IndexedDB(Dexie):items / outfits / wearLog / styleProfile / settings / weatherCache</div>
+      </div>
+      <div style="border:2px dashed #64748b;border-radius:10px;padding:12px;background:#f8fafc;text-align:center">
+        <div style="font-weight:700;color:#334155;margin-bottom:4px">外部服务</div>
+        <div style="font-size:12px;color:#64748b">视觉/文本模型 API(用户Key)· Open-Meteo 天气</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:18px" class="section">
+  <div class="label">关键设计原则</div>
+  <ul style="margin:6px 0 0 0;padding-left:20px;line-height:1.8">
+    <li><b>引擎层纯函数</b>:天气过滤/候选生成/亲和分计算不碰 IO,输入天气+衣橱+历史,输出候选,易测试</li>
+    <li><b>Service 隔离外部</b>:AI/天气/存储都是接口,测试时换 mock,真实环境换实现</li>
+    <li><b>本地优先</b>:所有数据在 IndexedDB,离线可用;API Key 存本地设置</li>
+  </ul>
+</div>
+
+<div class="section" style="margin-top:8px;color:#64748b;font-size:13px">
+  ☑ 这个分层结构看着合理吗?有要调整的地方吗?
+</div>

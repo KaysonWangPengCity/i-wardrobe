@@ -1,0 +1,133 @@
+<h2>数据模型 + 推荐流水线</h2>
+
+<div class="section">
+  <h3>① IndexedDB 表(Dexie)</h3>
+  <div class="mockup">
+    <div class="mockup-header">6 张表,全部本地</div>
+    <div class="mockup-body" style="padding:16px;display:grid;gap:12px">
+
+      <div style="border-left:3px solid #6366f1;padding-left:12px">
+        <div style="font-weight:700">items · 衣物单品</div>
+        <div style="font-size:12px;color:#475569;font-family:monospace;margin-top:4px">
+          id, imageBlob, category(Top/Bottom/Outerwear/Shoes),<br>
+          subCategory(T恤/衬衫/牛仔裤/西装…), color, season, thickness,<br>
+          style(casual/formal/street…), brand?, material?,<br>
+          createdAt, lastWornAt, wearCount, affinityScore
+        </div>
+      </div>
+
+      <div style="border-left:3px solid #6366f1;padding-left:12px">
+        <div style="font-weight:700">outfits · 穿搭快照(每次推荐产出)</div>
+        <div style="font-size:12px;color:#475569;font-family:monospace;margin-top:4px">
+          id, date, itemIds[4], reason, aiRanking,
+          weather{temp, condition}, feedback(liked/disliked/neutral)
+        </div>
+      </div>
+
+      <div style="border-left:3px solid #6366f1;padding-left:12px">
+        <div style="font-weight:700">wearLog · 实际穿着记录</div>
+        <div style="font-size:12px;color:#475569;font-family:monospace;margin-top:4px">
+          id, date, itemIds[], eventType(worn/dryCleaned/discarded)
+        </div>
+      </div>
+
+      <div style="border-left:3px solid #6366f1;padding-left:12px">
+        <div style="font-weight:700">styleProfile · 风格画像</div>
+        <div style="font-size:12px;color:#475569;font-family:monospace;margin-top:4px">
+          id(单条), preferredStyles[], colorPalette[], avoidedColors[],
+          warmthBias(0-1), notes
+        </div>
+      </div>
+
+      <div style="border-left:3px solid #6366f1;padding-left:12px">
+        <div style="font-weight:700">settings · 用户配置</div>
+        <div style="font-size:12px;color:#475569;font-family:monospace;margin-top:4px">
+          id(单条), apiKey, apiProvider, location, units,
+          notificationTime, outfitComponents[4]
+        </div>
+      </div>
+
+      <div style="border-left:3px solid #6366f1;padding-left:12px">
+        <div style="font-weight:700">weatherCache · 天气缓存</div>
+        <div style="font-size:12px;color:#475569;font-family:monospace;margin-top:4px">
+          date, location, tempHi, tempLo, condition, icon, fetchedAt
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>② 每日推荐流水线(方案 1:规则 + AI 重排)</h3>
+  <div class="mockup">
+    <div class="mockup-header">从早晨打开应用到看到今日穿搭</div>
+    <div class="mockup-body" style="padding:20px;display:flex;flex-direction:column;gap:0">
+
+      <!-- Step 1 -->
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="background:#6366f1;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">1</div>
+        <div style="flex:1">
+          <div style="font-weight:700">获取天气</div>
+          <div style="font-size:13px;color:#475569">WeatherService 拉 Open-Meteo → 温度区间 + 晴雨 → 缓存到 weatherCache</div>
+        </div>
+      </div>
+      <div style="height:16px;border-left:2px dashed #cbd5e1;margin-left:15px"></div>
+
+      <!-- Step 2 -->
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="background:#6366f1;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">2</div>
+        <div style="flex:1">
+          <div style="font-weight:700">规则过滤</div>
+          <div style="font-size:13px;color:#475569">
+            纯函数 <code>filterByWeather(items, weather)</code> → 剔除季节不对/厚度不匹配/被标记丢弃的单品 → 按品类分桶(Top/Bottom/Outerwear/Shoes)
+          </div>
+        </div>
+      </div>
+      <div style="height:16px;border-left:2px dashed #cbd5e1;margin-left:15px"></div>
+
+      <!-- Step 3 -->
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="background:#ec4899;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">3</div>
+        <div style="flex:1">
+          <div style="font-weight:700">候选组合生成(规则打分)</div>
+          <div style="font-size:13px;color:#475569">
+            笛卡尔积枚举 + 硬约束剪枝 → 色彩兼容表 + 品类配对规则 + 近期穿着天数(≥3 天前才允许) → 按打分排序取 Top 20 候选
+          </div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px">
+            打分 = 色彩谐和 × 0.35 + 品类适配 × 0.25 + 轮换分 × 0.2 + 亲和分 × 0.1 + 风格匹配 × 0.1
+          </div>
+        </div>
+      </div>
+      <div style="height:16px;border-left:2px dashed #cbd5e1;margin-left:15px"></div>
+
+      <!-- Step 4 -->
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="background:#ec4899;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">4</div>
+        <div style="flex:1">
+          <div style="font-weight:700">AI 重排(文本模型)</div>
+          <div style="font-size:13px;color:#475569">
+            Prompt = 天气 + 20 候选清单(每项:品类/颜色/风格) + styleProfile + 近 7 天穿的什么 → 让 LLM 选最优 3 套并给推荐理由
+          </div>
+        </div>
+      </div>
+      <div style="height:16px;border-left:2px dashed #cbd5e1;margin-left:15px"></div>
+
+      <!-- Step 5 -->
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="background:#10b981;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">5</div>
+        <div style="flex:1">
+          <div style="font-weight:700">展示 + 记录 + 反馈</div>
+          <div style="font-size:13px;color:#475569">
+            渲染今日推荐卡片 → 用户点赞/换掉/标记"实际穿了" → 更新 outfit + wearLog + 每件单品的 affinityScore
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:8px;color:#64748b;font-size:13px">
+  ☑ 数据模型和流水线看着合理吗?
+</div>

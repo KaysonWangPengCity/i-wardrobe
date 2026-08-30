@@ -116,7 +116,7 @@
 |---|---|---|
 | id | string | UUID |
 | date | string | YYYY-MM-DD,唯一 |
-| itemIds | string[] | 恰好 4 件,按[top, bottom, outerwear, shoes]顺序;无外套为 null |
+| itemIds | (string \| null)[] | 按[top, bottom, outerwear, shoes]顺序,无外套槽为 null,长度恒为 4 |
 | reason | string | AI 生成的推荐理由 |
 | aiRanking | number | AI 重排后的名次(1 = 最优) |
 | weather | object | `{ tempHi, tempLo, condition, icon }` 快照 |
@@ -212,9 +212,9 @@ filterByWeather(items, weather, season) → FilteredItems
 generateCandidates(filtered, wearLog, styleProfile, count=20) → OutfitCandidate[]
 ```
 
-**枚举**:对四个桶做笛卡尔积,但立刻被硬约束剪枝:
-- 外套桶为空时跳过外套槽(仅三件套)
-- 任一槽位无可用单品,跳过该组合
+**枚举**:对四个桶做笛卡尔积,但外套桶**允许为空**(外层枚举时对空外套桶传 null 槽位,不是跳过整个组合):
+- top / bottom / shoes 任一桶为空 → 整个组合跳过(无外套可选但其他三件不可缺)
+- outerwear 桶为空 / 天气不需外套 → 该槽位传 null,组合照常参与打分
 - 近期穿过:单品 `lastWornAt` 在近 N 天内(N 可配置,默认 3)时,该组合扣分
 
 **打分公式**:
@@ -258,7 +258,7 @@ Prompt 构造:
 ### Step 5 · 展示 + 记录 + 反馈
 
 - 渲染今日推荐卡片
-- 用户可点:👍 喜欢 / 🔄 换一套(从 RankedOutfit 里取下一套,或重新跑 Step 3-4 取更多) / ✓ 穿了
+- 用户可点:👍 喜欢 / 🔄 换一套(按顺序展示 AI 返回的 Top 3;用完后重新跑 Step 3-4,取 Top 20) / ✓ 穿了
 - 反馈写回 outfit.feedback / outfit.worn,并更新每件单品的 affinityScore
 
 **affinityScore 更新规则**:
