@@ -116,6 +116,38 @@ export default function SettingsPage() {
       <Card>
         <CardHeader><CardTitle>AI 服务</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          {import.meta.env.DEV && (
+            <div className="rounded-md border border-dashed border-amber-400/50 bg-amber-50/30 p-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full border-amber-400 text-amber-700 hover:bg-amber-100"
+                onClick={async () => {
+                  const key = import.meta.env.VITE_TEST_API_KEY
+                  const baseUrl = import.meta.env.VITE_TEST_API_BASE_URL
+                  const provider = import.meta.env.VITE_TEST_API_PROVIDER as SettingsType['apiProvider'] | undefined
+                  const visionModel = import.meta.env.VITE_TEST_VISION_MODEL
+                  const textModel = import.meta.env.VITE_TEST_TEXT_MODEL
+                  const location = import.meta.env.VITE_TEST_LOCATION
+                  if (!key) {
+                    alert('✗ 未配置 .env.local 的 VITE_TEST_API_KEY')
+                    return
+                  }
+                  await updateSettings({
+                    apiKey: key,
+                    apiBaseUrl: baseUrl || '',
+                    apiProvider: provider || 'custom',
+                    visionModel: visionModel || '',
+                    textModel: textModel || '',
+                    location: location || '',
+                  })
+                  alert('✓ 开发配置已载入')
+                }}
+              >
+                🧪 载入开发配置(从 .env.local)
+              </Button>
+            </div>
+          )}
           <div>
             <Label>提供商</Label>
             <select
