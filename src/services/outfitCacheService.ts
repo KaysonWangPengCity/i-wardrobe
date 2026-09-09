@@ -84,7 +84,7 @@ export function cacheRecordToRankedList(
   const byId = new Map(activeItems.map((it) => [it.id, it]))
   const result: RankedOutfit[] = []
   for (const entry of record.outfits) {
-    const items: (Item | null)[] = entry.itemIds.map((id, slotIndex) => {
+    const items: (Item | null)[] = entry.itemIds.map((id) => {
       if (id === null) return null
       return byId.get(id) ?? null
     })

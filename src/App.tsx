@@ -9,7 +9,7 @@ import HistoryPage from '@/pages/History'
 import SettingsPage from '@/pages/Settings'
 
 export default function App() {
-  const { init, ready, settings } = useAppStore()
+  const { init, ready } = useAppStore()
 
   useEffect(() => {
     init()

@@ -43,6 +43,8 @@ export const CardContent: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ cl
   <div className={cn('p-4 pt-0', className)} {...props} />
 )
 
-export const Badge: React.FC<React.HTMLAttributes<HTMLSpanElement>> = ({ className, ...props }) => (
-  <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', className)} {...props} />
+type BadgeVariant = 'default' | 'outline' | 'secondary' | 'destructive'
+
+export const Badge: React.FC<React.HTMLAttributes<HTMLSpanElement> & { variant?: BadgeVariant }> = ({ className, variant, ...props }) => (
+  <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', variant === 'outline' && 'border-border text-muted-foreground', className)} {...props} />
 )

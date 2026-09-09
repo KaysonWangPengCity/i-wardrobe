@@ -4,8 +4,8 @@ import { Button } from '@/components/Button'
 import { Input, Card, CardContent, CardHeader, CardTitle, Label, Badge } from '@/components/ui'
 import { useAppStore } from '@/store/app'
 import { db } from '@/db/database'
-import { geocode } from '@/services/weatherService'
 import { seedMockData } from '@/lib/mockData'
+import type { Settings as SettingsType } from '@/types'
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useAppStore()
@@ -22,7 +22,7 @@ export default function SettingsPage() {
   if (!settings) return null
 
   async function testConnection() {
-    if (!settings.apiKey) {
+    if (!settings!.apiKey) {
       setTestMsg('请先填写 API Key')
       return
     }
@@ -30,10 +30,9 @@ export default function SettingsPage() {
     setTestMsg(null)
     try {
       const res = await fetch(
-        settings.apiProvider === 'openai'
-          ? 'https://api.openai.com/v1/models'
-          : (settings.apiBaseUrl || 'https://api.openai.com/v1') + '/models',
-        { headers: { Authorization: `Bearer ${settings.apiKey}` } },
+        settings!.apiProvider === 'openai'
+          ? 'https://api.openai.com/v1/models'          : (settings!.apiBaseUrl || 'https://api.openai.com/v1') + '/models',
+        { headers: { Authorization: `Bearer ${settings!.apiKey}` } },
       )
       if (res.ok) setTestMsg('✓ 连接成功')
       else setTestMsg(`✗ 错误 ${res.status}:${(await res.text()).slice(0, 100)}`)
@@ -122,8 +121,8 @@ export default function SettingsPage() {
             <select
               value={settings.apiProvider}
               onChange={(e) => {
-                const provider = e.target.value as Settings['apiProvider']
-                const patch: Partial<Settings> = { apiProvider: provider }
+                const provider = e.target.value as SettingsType['apiProvider']
+                const patch: Partial<SettingsType> = { apiProvider: provider }
                 // 切换提供商时自动填默认模型
                 if (provider === 'deepseek') {
                   patch.visionModel = 'deepseek-v4-flash-vision-exp'

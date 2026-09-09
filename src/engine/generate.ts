@@ -70,7 +70,6 @@ function topBottomFit(top: string, bottom: string): number {
 }
 
 function topOuterFit(top: string, outer: string): number {
-  const light = ['T恤', '衬衫']
   const heavy = ['毛衣', '卫衣']
   const outerHeavy = ['大衣', '羽绒服', '棉服']
 
@@ -116,9 +115,9 @@ function styleMatch(items: (Item | null)[], profile: StyleProfile): number {
 
 export function generateCandidates(
   filtered: { top: Item[]; bottom: Item[]; outerwear: Item[]; shoes: Item[] },
-  wearLog: WearLogEntry[],
+  _wearLog: WearLogEntry[],
   styleProfile: StyleProfile,
-  weather: Weather,
+  _weather: Weather,
   options: GenerateOptions = {},
 ): OutfitCandidate[] {
   const count = options.count ?? 20
