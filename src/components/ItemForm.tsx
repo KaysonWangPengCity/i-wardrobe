@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardContent, Input, Label } from '@/components/ui'
 import type { Category, ItemTagResult, Pattern, Season, Style } from '@/types'
 import {
@@ -24,6 +24,9 @@ export interface ItemFormProps {
 export function ItemForm({ form, setForm, allowCustomSubCategory = true }: ItemFormProps) {
   const category = (form.category as Category | undefined) ?? 'Top'
 
+  // 用户是否手动选了"自定义"(独立 state,避免 subCategory 为空时被派生值弹回)
+  const [isCustomMode, setIsCustomMode] = useState(false)
+
   // 当前 category 对应的子分类列表;加上"自定义…"兜底
   const subList = useMemo(() => SUB_CATEGORY_MAP[category], [category])
 
@@ -32,12 +35,14 @@ export function ItemForm({ form, setForm, allowCustomSubCategory = true }: ItemF
     () => matchSubCategory(category, form.subCategory),
     [category, form.subCategory],
   )
-  const customSelected = allowCustomSubCategory && !!form.subCategory && !matchedOpt
+  // 自定义模式:用户手动选了自定义,或 subCategory 匹配不上任何预定义项
+  const customSelected = allowCustomSubCategory && (isCustomMode || (!!form.subCategory && !matchedOpt))
   const selectedKey = customSelected ? '__custom' : matchedOpt?.key ?? subList[0]?.key ?? '__custom'
 
   function onCategoryClick(c: Category) {
-    // 切换 category → 重置 subCategory 为新大类第一项
+    // 切换 category → 重置 subCategory 为新大类第一项,退出自定义模式
     const first = SUB_CATEGORY_MAP[c][0]
+    setIsCustomMode(false)
     setForm({
       ...form,
       category: c,
@@ -48,9 +53,11 @@ export function ItemForm({ form, setForm, allowCustomSubCategory = true }: ItemF
   function onSubCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const key = e.target.value
     if (key === '__custom') {
+      setIsCustomMode(true)
       // 保留已有 subCategory(如果有),否则空字符串让用户自己填
       setForm({ ...form, subCategory: customSelected ? (form.subCategory ?? '') : '' })
     } else {
+      setIsCustomMode(false)
       const opt = subList.find((o) => o.key === key)
       if (opt) setForm({ ...form, subCategory: opt.label })
     }

@@ -5,6 +5,7 @@ import { Card, CardContent, Label } from '@/components/ui'
 import { ItemForm } from '@/components/ItemForm'
 import { useAppStore } from '@/store/app'
 import { db } from '@/db/database'
+import { useToast } from '@/components/ui/Toast'
 import { tagImage } from '@/services/tagService'
 import { uuid, blobToDataURL, resizeImage, makeThumbnail } from '@/lib/image'
 import { makePlaceholderBlob, drawPlaceholderPreview } from '@/lib/placeholder'
@@ -51,7 +52,9 @@ function finalizeFormDefaults(form: FormState): Required<Omit<FormState, 'confid
 export default function CapturePage() {
   const { settings } = useAppStore()
   const navigate = useNavigate()
+  const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
+  const galleryFileRef = useRef<HTMLInputElement>(null)
   const manualFileRef = useRef<HTMLInputElement>(null)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -117,6 +120,7 @@ export default function CapturePage() {
 
   // --- 拍照模式流程 ---
   function pickPhotoFile() { fileRef.current?.click() }
+  function pickGalleryFile() { galleryFileRef.current?.click() }
 
   async function onPhotoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -135,7 +139,7 @@ export default function CapturePage() {
   async function startTagging() {
     if (!imageBlob || !settings) return
     if (!settings.apiKey) {
-      alert('请先到"设置"页填写 API Key')
+      toast('请先到"设置"页填写 API Key', 'error')
       navigate('/settings')
       return
     }
@@ -204,14 +208,14 @@ export default function CapturePage() {
     const finalized = finalizeFormDefaults(form)
 
     // 2. 硬校验(最少必填)
-    if (!finalized.category) { alert('请选择品类'); return }
-    if (!finalized.color) { alert('请填写颜色'); return }
-    if (!finalized.colorHex) { alert('请选择颜色色值'); return }
+    if (!finalized.category) { toast('请选择品类', 'error'); return }
+    if (!finalized.color) { toast('请填写颜色', 'error'); return }
+    if (!finalized.colorHex) { toast('请选择颜色色值', 'error'); return }
 
     // 3. 决定 imageBlob 来源
     let finalBlob: Blob
     if (mode === 'photo') {
-      if (!imageBlob) { alert('请先选择或拍摄图片'); return }
+      if (!imageBlob) { toast('请先选择或拍摄图片', 'error'); return }
       finalBlob = imageBlob
     } else {
       // 手动模式
@@ -228,7 +232,7 @@ export default function CapturePage() {
             640,
           )
         } catch (e) {
-          alert(`生成占位图失败:${(e as Error).message}`)
+          toast(`生成占位图失败:${(e as Error).message}`, 'error')
           return
         }
       }
@@ -239,7 +243,7 @@ export default function CapturePage() {
     try {
       thumbnail = await makeThumbnail(finalBlob, 200)
     } catch (e) {
-      alert(`生成缩略图失败:${(e as Error).message}`)
+      toast(`生成缩略图失败:${(e as Error).message}`, 'error')
       return
     }
 
@@ -263,15 +267,15 @@ export default function CapturePage() {
       discarded: false,
     }
     await db.items.add(item)
-    alert('已加入衣橱!')
+    toast('已加入衣橱!', 'success')
     navigate('/wardrobe')
   }
 
   // --- UI ---
   return (
-    <div className="mx-auto max-w-md p-4 pb-24">
-      {/* 双 Tab 切换 */}
-      <div className="mb-4">
+    <div className="mx-auto max-w-md pb-24">
+      {/* Sticky header: 标题 + Tab */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 pt-4 pb-3">
         <h1 className="mb-3 text-xl font-bold">入库</h1>
         <div className="flex rounded-lg bg-background p-1 border">
           <button
@@ -297,12 +301,21 @@ export default function CapturePage() {
         </div>
       </div>
 
+      {/* 内容区 */}
+      <div className="px-4">
       {/* 隐藏的 file input */}
       <input
         ref={fileRef}
         type="file"
         accept="image/*"
         capture="environment"
+        className="hidden"
+        onChange={onPhotoFileChange}
+      />
+      <input
+        ref={galleryFileRef}
+        type="file"
+        accept="image/*"
         className="hidden"
         onChange={onPhotoFileChange}
       />
@@ -325,8 +338,11 @@ export default function CapturePage() {
               >
                 📷
               </div>
-              <p className="text-sm text-muted-foreground">点击拍照或选图</p>
-              <Button onClick={pickPhotoFile}>选择图片</Button>
+              <p className="text-sm text-muted-foreground">拍照或从相册选择</p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={pickGalleryFile}>🖼 相册选图</Button>
+                <Button onClick={pickPhotoFile}>📷 拍照</Button>
+              </div>
             </div>
           )}
 
@@ -435,6 +451,7 @@ export default function CapturePage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

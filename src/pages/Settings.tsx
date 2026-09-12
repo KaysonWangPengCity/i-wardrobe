@@ -4,12 +4,16 @@ import { Button } from '@/components/Button'
 import { Input, Card, CardContent, CardHeader, CardTitle, Label, Badge } from '@/components/ui'
 import { useAppStore } from '@/store/app'
 import { db } from '@/db/database'
+import { useModal } from '@/components/ui/Modal'
+import { useToast } from '@/components/ui/Toast'
 import { seedMockData } from '@/lib/mockData'
 import type { Settings as SettingsType } from '@/types'
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useAppStore()
   const navigate = useNavigate()
+  const modal = useModal()
+  const toast = useToast()
   const [testing, setTesting] = useState(false)
   const [testMsg, setTestMsg] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
@@ -43,28 +47,81 @@ export default function SettingsPage() {
     }
   }
 
+  function geoErrMsg(code: number): string {
+    switch (code) {
+      case 1: return '权限被拒绝(请在浏览器/系统设置中允许定位)'
+      case 2: return '位置不可用(请检查设备定位是否开启,或到室外再试)'
+      case 3: return '定位超时(网络不佳或 GPS 信号弱,请重试)'
+      default: return '未知定位错误'
+    }
+  }
+
   async function useGeo() {
     setLocating(true)
     setLocMsg(null)
     try {
-      const pos = await new Promise<{ lat: number; lon: number }>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
-          (err) => reject(new Error(err.message)),
-          { timeout: 8000 },
+      // 首选:浏览器 GPS 定位(需要 secure context)
+      if ('geolocation' in navigator && window.isSecureContext) {
+        const pos = await new Promise<{ lat: number; lon: number }>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+            (err) => reject(new Error(geoErrMsg(err.code))),
+            { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 },
+          )
+        })
+        const res = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${pos.lat}&longitude=${pos.lon}&language=zh`,
         )
-      })
-      // 反查城市 — 用 Open-Meteo 的 geocoding 反向
-      const res = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${pos.lat}&longitude=${pos.lon}&language=zh`,
-      )
-      const data = (await res.json()) as { results?: { name: string }[] }
-      const city = data.results?.[0]?.name
-      if (city) {
-        await updateSettings({ location: city })
-        setLocMsg(`✓ 已定位到 ${city}`)
-      } else {
-        setLocMsg('✓ 获取到坐标,但未能反查城市')
+        if (!res.ok) throw new Error(`反查失败:HTTP ${res.status}`)
+        const data = (await res.json()) as { results?: { name: string; country?: string }[] }
+        const r = data.results?.[0]
+        const city = r?.name
+        const country = r?.country
+        if (city) {
+          const label = country && country !== city ? `${city},${country}` : city
+          await updateSettings({ location: label })
+          setLocMsg(`✓ 已 GPS 定位到 ${label}`)
+          return
+        } else {
+          setLocMsg(`✓ 坐标:${pos.lat.toFixed(4)},${pos.lon.toFixed(4)}(未能反查城市,将用 IP 定位)`)
+        }
+      }
+      // 降级:IP 定位(HTTP 也可用,城市级精度)
+      const ipRes = await fetch('https://ipinfo.io/json')
+      if (!ipRes.ok) throw new Error(`IP 定位失败:HTTP ${ipRes.status}`)
+      const ipData = (await ipRes.json()) as {
+        ip: string
+        city?: string
+        region?: string
+        country?: string
+        loc?: string // "lat,lon"
+      }
+      if (!ipData.city && !ipData.region && !ipData.country) throw new Error('IP 定位未返回有效信息')
+      // 构造 label:合并 city + region,去重相同项
+      const seg = [ipData.city, ipData.region].filter((v, i, arr) => v && arr.indexOf(v) === i).join(',')
+      const label = seg
+        ? ipData.country && !seg.endsWith(ipData.country) ? `${seg},${ipData.country}` : seg
+        : ipData.country || '未知位置'
+      await updateSettings({ location: label })
+      setLocMsg(`✓ 已 IP 定位到 ${label}(精度约城市级)`)
+      // 顺便用 Open-Meteo 反查中文城市名(如果拿到了坐标)
+      if (ipData.loc) {
+        const [lat, lon] = ipData.loc.split(',').map(Number)
+        if (lat && lon) {
+          try {
+            const revRes = await fetch(
+              `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=zh&count=1`,
+            )
+            if (revRes.ok) {
+              const rev = (await revRes.json()) as { results?: { name: string }[] }
+              const zhName = rev.results?.[0]?.name
+              if (zhName && zhName !== ipData.city) {
+                await updateSettings({ location: zhName })
+                setLocMsg(`✓ 已 IP 定位到 ${zhName}(精度约城市级)`)
+              }
+            }
+          } catch { /* 忽略反查失败 */ }
+        }
       }
     } catch (e) {
       setLocMsg(`✗ ${(e as Error).message}`)
@@ -99,18 +156,29 @@ export default function SettingsPage() {
   }
 
   async function clearAll() {
-    if (!confirm('确定要清空所有数据吗?此操作不可恢复!')) return
+    const ok = await modal.confirm('确定要清空所有数据吗？此操作不可恢复！', {
+      title: '清空所有数据',
+      confirmText: '清空',
+      destructive: true,
+    })
+    if (!ok) return
     await Promise.all([
       db.items.clear(),
       db.outfits.clear(),
       db.wearLog.clear(),
     ])
-    alert('已清空')
+    toast('已清空 ✓', 'success')
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4 p-4 pb-24">
-      <h1 className="text-xl font-bold">设置</h1>
+    <div className="mx-auto max-w-md pb-24">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 pt-4 pb-3">
+        <h1 className="text-xl font-bold">设置</h1>
+      </div>
+
+      {/* 内容区 */}
+      <div className="space-y-4 px-4">
 
       {/* AI 服务 */}
       <Card>
@@ -130,7 +198,7 @@ export default function SettingsPage() {
                   const textModel = import.meta.env.VITE_TEST_TEXT_MODEL
                   const location = import.meta.env.VITE_TEST_LOCATION
                   if (!key) {
-                    alert('✗ 未配置 .env.local 的 VITE_TEST_API_KEY')
+                    toast('✗ 未配置 .env.local 的 VITE_TEST_API_KEY', 'error')
                     return
                   }
                   await updateSettings({
@@ -141,7 +209,7 @@ export default function SettingsPage() {
                     textModel: textModel || '',
                     location: location || '',
                   })
-                  alert('✓ 开发配置已载入')
+                  toast('✓ 开发配置已载入', 'success')
                 }}
               >
                 🧪 载入开发配置(从 .env.local)
@@ -293,17 +361,17 @@ export default function SettingsPage() {
               visionModel: 'gpt-4o-mini',
               textModel: 'gpt-4o-mini',
             })
-            alert('✓ 已清空 AI 配置,请手动填写你的 API Key 和模型名')
+            toast('✓ 已清空 AI 配置,请手动填写你的 API Key 和模型名', 'success')
           }}>
             🧹 清空 AI 配置
           </Button>
           <Button size="sm" variant="outline" className="w-full" onClick={async () => {
             try {
-              const n = await seedMockData()
-              if (n > 0) alert(`✓ 已载入 ${n} 件示例衣物!去"今日"看看吧`)
-              else alert('已取消或已有数据')
+              const n = await seedMockData(async (msg) => await modal.confirm(msg))
+              if (n > 0) toast(`✓ 已载入 ${n} 件示例衣物!去"今日"看看吧`, 'success')
+              else toast('已取消或衣橱已有数据', 'info')
             } catch (e) {
-              alert(`✗ 载入失败:${(e as Error).message}`)
+              toast(`✗ 载入失败:${(e as Error).message}`, 'error')
             }
           }}>
             🎁 载入示例数据(测试用)
@@ -320,6 +388,7 @@ export default function SettingsPage() {
       <p className="pt-2 text-center text-xs text-muted-foreground">
         v1.0 · 所有数据仅存本地,不会上传
       </p>
+      </div>
     </div>
   )
 }
