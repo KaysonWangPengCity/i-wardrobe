@@ -56,11 +56,15 @@ async function makeColorBlob(hex: string, size = 400): Promise<Blob> {
   })
 }
 
-export async function seedMockData(): Promise<number> {
+export async function seedMockData(
+  confirmFn?: (message: string) => Promise<boolean>,
+): Promise<number> {
   // 检查是否已有数据
   const existing = await db.items.count()
   if (existing > 0) {
-    const ok = confirm(`衣橱已有 ${existing} 件衣物,继续添加示例数据?`)
+    const ok = confirmFn
+      ? await confirmFn(`衣橱已有 ${existing} 件衣物,继续添加示例数据?`)
+      : confirm(`衣橱已有 ${existing} 件衣物,继续添加示例数据?`)
     if (!ok) return 0
   }
 
